@@ -13,36 +13,43 @@ import {
   FiSave 
 } from "react-icons/fi";
 import toast from "react-hot-toast";
+import axios from "axios";
 
 // Form şeması
 const subscriptionSchema = z.object({
   name: z.string().min(1, "Abonelik adı gereklidir"),
   price: z.string().min(1, "Fiyat gereklidir"),
-  billingCycle: z.enum(["weekly", "monthly", "yearly"], {
+  billingCycle: z.enum(["monthly", "yearly", "quarterly"], {
     required_error: "Fatura döngüsü seçilmelidir",
   }),
-  category: z.string().min(1, "Kategori gereklidir"),
+  category: z.enum(["entertainment", "productivity", "utilities", "other"], {
+    required_error: "Kategori seçilmelidir",
+  }),
   nextBillingDate: z.string().min(1, "Sonraki fatura tarihi gereklidir"),
   description: z.string().optional(),
   website: z.string().optional(),
   logo: z.string().optional(),
   reminderDays: z.string().optional(),
+  paymentMethod: z.string().min(1, "Ödeme yöntemi gereklidir"),
+  currency: z.string().default("TRY"),
 });
 
 type SubscriptionFormValues = z.infer<typeof subscriptionSchema>;
 
 // Kategori seçenekleri
 const categoryOptions = [
-  "Eğlence",
-  "Müzik",
-  "Video",
-  "Oyun",
-  "Yazılım",
-  "Bulut Depolama",
-  "Eğitim",
-  "Fitness",
-  "Yemek",
-  "Alışveriş",
+  { value: "entertainment", label: "Eğlence" },
+  { value: "productivity", label: "Verimlilik" },
+  { value: "utilities", label: "Hizmetler" },
+  { value: "other", label: "Diğer" },
+];
+
+// Ödeme yöntemi seçenekleri
+const paymentMethodOptions = [
+  "Kredi Kartı",
+  "Banka Kartı",
+  "Havale/EFT",
+  "PayPal",
   "Diğer",
 ];
 
@@ -61,30 +68,52 @@ export default function AddSubscriptionPage() {
       name: "",
       price: "",
       billingCycle: "monthly",
-      category: "",
+      category: "entertainment",
       nextBillingDate: new Date().toISOString().split("T")[0],
       description: "",
       website: "",
       logo: "",
       reminderDays: "3",
+      paymentMethod: "Kredi Kartı",
+      currency: "TRY",
     },
   });
 
   const onSubmit = async (data: SubscriptionFormValues) => {
     setIsLoading(true);
     try {
-      // Fiyatı sayıya dönüştür
+      // Veriyi backend'in beklediği formata dönüştür
+      const { price, ...rest } = data;
       const formattedData = {
-        ...data,
-        price: parseFloat(data.price),
+        ...rest,
+        amount: parseFloat(price), // price -> amount
         reminderDays: data.reminderDays ? parseInt(data.reminderDays) : 3,
+        notificationSettings: {
+          reminderDays: data.reminderDays ? parseInt(data.reminderDays) : 3,
+          email: true,
+          sms: false
+        },
+        status: "active",
+        autoRenewal: true
       };
 
-      // API'ye gönder
-      // Gerçek API'ye bağlanacak şekilde güncellenecek
-      // Şimdilik sadece simüle ediyoruz ve formattedData'yı konsola yazdırıyoruz
-      console.log("Gönderilecek veri:", formattedData);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Backend API'ye gönder
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Oturum süresi dolmuş. Lütfen tekrar giriş yapın.");
+        router.push("/login");
+        return;
+      }
+
+      await axios.post(
+        "http://localhost:3000/api/subscriptions", 
+        formattedData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
       
       toast.success("Abonelik başarıyla eklendi!");
       reset();
@@ -146,8 +175,8 @@ export default function AddSubscriptionPage() {
                 >
                   <option value="">Kategori Seçin</option>
                   {categoryOptions.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
+                    <option key={category.value} value={category.value}>
+                      {category.label}
                     </option>
                   ))}
                 </select>
@@ -191,8 +220,8 @@ export default function AddSubscriptionPage() {
                 {...register("billingCycle")}
                 className={`form-input ${errors.billingCycle ? "border-red-500" : ""}`}
               >
-                <option value="weekly">Haftalık</option>
                 <option value="monthly">Aylık</option>
+                <option value="quarterly">Üç Aylık</option>
                 <option value="yearly">Yıllık</option>
               </select>
               {errors.billingCycle && (
@@ -266,6 +295,27 @@ export default function AddSubscriptionPage() {
                 className="form-input"
                 placeholder="https://example.com/logo.png"
               />
+            </div>
+
+            {/* Ödeme Yöntemi */}
+            <div>
+              <label htmlFor="paymentMethod" className="form-label">
+                Ödeme Yöntemi <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="paymentMethod"
+                {...register("paymentMethod")}
+                className={`form-input ${errors.paymentMethod ? "border-red-500" : ""}`}
+              >
+                {paymentMethodOptions.map((method) => (
+                  <option key={method} value={method}>
+                    {method}
+                  </option>
+                ))}
+              </select>
+              {errors.paymentMethod && (
+                <p className="form-error">{errors.paymentMethod.message}</p>
+              )}
             </div>
           </div>
 

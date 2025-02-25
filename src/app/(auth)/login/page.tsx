@@ -37,6 +37,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
     try {
+      // Backend API adresini kullanıyoruz
       const response = await axios.post("http://localhost:3000/api/auth/login", data);
       
       // Token'ı localStorage'a kaydet
